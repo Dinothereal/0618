@@ -1208,7 +1208,7 @@ const blackCatTriggerRadius = 5.0;        // 主貓多近落地才算觸發 (3.0
 // 生日歌音樂 (happy_birthday_meow.mp3 跟 app.js 在同一個資料夾)
 const bgMusic = new Audio('happy_birthday_meow.mp3');
 bgMusic.loop = true;
-bgMusic.volume = 0.35; // 0.7 → 0.35，音量縮小一半
+bgMusic.volume = 0.175; // 0.35 → 0.175，再縮一半
 
 // ========================
 // 貓咪落地產生 Low Poly 方塊白煙粒子系統
@@ -1767,7 +1767,158 @@ function animate() {
 
 camera.position.copy(new THREE.Vector3().copy(cat.position).add(cameraOffset));
 camera.lookAt(cat.position);
-animate();
+
+// ========================
+// 開場流程：歡迎畫面 → 跳貓咪 → loading 轉場 → 揭曉場景
+// ========================
+const welcomeScreen = document.getElementById('welcome-screen');
+const loadingScreen = document.getElementById('loading-screen');
+const canvasContainer = document.getElementById('canvas-container');
+const playBtn = document.getElementById('welcome-play');
+const welcomeCatContainer = document.getElementById('welcome-cat-container');
+
+// ----- 歡迎畫面內的迷你 3D 主角貓咪 -----
+const wcSize = 140;
+const wcRenderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+wcRenderer.setSize(wcSize, wcSize);
+wcRenderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+wcRenderer.shadowMap.enabled = true; // 開陰影
+welcomeCatContainer.appendChild(wcRenderer.domElement);
+
+const wcScene = new THREE.Scene();
+const wcCamera = new THREE.PerspectiveCamera(40, 1, 0.1, 100);
+wcCamera.position.set(0, 1.5, 4.5);
+wcCamera.lookAt(0, 0.8, 0);
+
+wcScene.add(new THREE.AmbientLight(0xffffff, 0.6));
+const wcDirLight = new THREE.DirectionalLight(0xffffff, 0.75);
+wcDirLight.position.set(2, 4, 3);
+wcDirLight.castShadow = true;
+wcDirLight.shadow.mapSize.width = 256;
+wcDirLight.shadow.mapSize.height = 256;
+wcDirLight.shadow.camera.left = -2;
+wcDirLight.shadow.camera.right = 2;
+wcDirLight.shadow.camera.top = 2;
+wcDirLight.shadow.camera.bottom = -2;
+wcDirLight.shadow.camera.near = 0.5;
+wcDirLight.shadow.camera.far = 10;
+wcScene.add(wcDirLight);
+
+// 透明的接收陰影圓盤 (ShadowMaterial 只渲染陰影，其餘部分仍透明)
+const wcGround = new THREE.Mesh(
+    new THREE.CircleGeometry(1.4, 24),
+    new THREE.ShadowMaterial({ opacity: 0.32 })
+);
+wcGround.rotation.x = -Math.PI / 2;
+wcGround.position.y = 0;
+wcGround.receiveShadow = true;
+wcScene.add(wcGround);
+
+// 建立跟主貓咪同款的貓 (白底 + 咖啡斑 + 深色 + 橘色生日帽)
+const welcomeCat = new THREE.Group();
+const wcCatMat = new THREE.MeshStandardMaterial({ color: 0xffffff, flatShading: true });
+const wcSpotMat = new THREE.MeshStandardMaterial({ color: 0x8B5A2B, flatShading: true });
+const wcDarkMat = new THREE.MeshStandardMaterial({ color: 0x333333, flatShading: true });
+
+const wcBody = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.6, 1.35), wcCatMat);
+wcBody.position.set(0, 0.5, -0.075);
+wcBody.castShadow = true;
+welcomeCat.add(wcBody);
+const wcBodySpot = new THREE.Mesh(new THREE.BoxGeometry(0.82, 0.3, 0.45), wcSpotMat);
+wcBodySpot.position.set(0, 0.6, 0.1);
+welcomeCat.add(wcBodySpot);
+const wcHead = new THREE.Mesh(new THREE.BoxGeometry(0.63, 0.54, 0.63), wcCatMat);
+wcHead.position.set(0, 0.9, 0.75);
+wcHead.castShadow = true;
+welcomeCat.add(wcHead);
+const wcEarGeo = new THREE.ConeGeometry(0.15, 0.3, 4);
+const wcEar1 = new THREE.Mesh(wcEarGeo, wcSpotMat);
+wcEar1.position.set(-0.2, 1.3, 0.8);
+wcEar1.castShadow = true;
+welcomeCat.add(wcEar1);
+const wcEar2 = new THREE.Mesh(wcEarGeo, wcDarkMat);
+wcEar2.position.set(0.2, 1.3, 0.8);
+wcEar2.castShadow = true;
+welcomeCat.add(wcEar2);
+const wcHat = new THREE.Mesh(
+    new THREE.ConeGeometry(0.25, 0.5, 6),
+    new THREE.MeshStandardMaterial({ color: 0xff8c00, flatShading: true })
+);
+wcHat.position.set(0, 1.45, 0.75);
+wcHat.castShadow = true;
+welcomeCat.add(wcHat);
+const wcPom = new THREE.Mesh(
+    new THREE.DodecahedronGeometry(0.08, 1),
+    new THREE.MeshStandardMaterial({ color: 0xffffff, flatShading: true })
+);
+wcPom.position.set(0, 1.73, 0.75);
+welcomeCat.add(wcPom);
+const wcTail = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.15, 0.8), wcDarkMat);
+wcTail.position.set(0, 0.7, -0.8);
+wcTail.rotation.x = Math.PI / 4;
+wcTail.castShadow = true;
+welcomeCat.add(wcTail);
+
+welcomeCat.scale.set(0.9, 0.9, 0.9);
+welcomeCat.position.x = -0.18; // 往左微調，補償旋轉時視覺中心偏右
+wcScene.add(welcomeCat);
+
+let wcJumpY = 0;
+let wcJumpVel = 0;
+let wcJumping = false;
+let wcAnimRunning = true;
+
+function welcomeLoop() {
+    if (!wcAnimRunning) return;
+    requestAnimationFrame(welcomeLoop);
+    if (wcJumping) {
+        wcJumpY += wcJumpVel;
+        wcJumpVel -= 0.006; // 重力 0.012 → 0.006 (跳躍高度 ÷ 2，airtime 維持原本約 0.5 秒)
+        if (wcJumpY < 0) {
+            wcJumpY = 0;
+            wcJumpVel = 0;
+            wcJumping = false;
+        }
+    }
+    welcomeCat.position.y = wcJumpY;
+    welcomeCat.rotation.y += 0.005;
+    wcRenderer.render(wcScene, wcCamera);
+}
+welcomeLoop();
+
+function startCatWorld() {
+    wcJumping = true;
+    wcJumpVel = 0.09; // 初速 0.18 → 0.09 (跳躍高度 ÷ 2)
+
+    setTimeout(() => {
+        // loading 一上就立刻把 welcome 收掉，避免 loading 淡出時 welcome 又露出來閃一下
+        loadingScreen.classList.add('visible');
+        welcomeScreen.style.display = 'none';
+        wcAnimRunning = false;
+
+        requestAnimationFrame(() => {
+            setTimeout(() => {
+                animate();
+                renderer.render(scene, camera);
+                renderer.shadowMap.needsUpdate = true;
+
+                setTimeout(() => {
+                    loadingScreen.classList.add('fade-out');
+                    canvasContainer.classList.add('revealed');
+                    setTimeout(() => {
+                        loadingScreen.style.display = 'none';
+                    }, 700);
+                }, 800);
+            }, 50);
+        });
+    }, 650);
+}
+
+playBtn.addEventListener('click', startCatWorld);
+playBtn.addEventListener('touchend', (e) => {
+    e.preventDefault();
+    startCatWorld();
+}, { passive: false });
 
 window.addEventListener('resize', () => {
     camera.aspect = window.innerWidth / window.innerHeight;
