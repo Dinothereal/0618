@@ -4,7 +4,7 @@ body, html {
     width: 100%;
     height: 100%;
     overflow: hidden; /* 防止滾動條 */
-    background-color: #87CEEB; /* 天空藍 */
+    background-color: #ffffff; /* 改成白色，避免轉場時露出底色 */
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
 
@@ -12,6 +12,12 @@ body, html {
     width: 100%;
     height: 100%;
     display: block;
+    opacity: 0;
+    transition: opacity 0.6s ease;
+}
+
+#canvas-container.revealed {
+    opacity: 1;
 }
 
 #instructions {
@@ -34,4 +40,118 @@ body, html {
 #instructions p {
     margin: 0;
     color: #555;
+}
+
+/* ===== 開場歡迎畫面 ===== */
+#welcome-screen {
+    position: fixed;
+    inset: 0;
+    background: #ffffff;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    transition: opacity 0.6s ease;
+    font-family: 'Helvetica Neue', 'Helvetica', 'Arial', 'Segoe UI', sans-serif;
+}
+
+#welcome-cat-container {
+    width: 140px;
+    height: 140px;
+    margin-bottom: 1.2rem;
+}
+
+#welcome-title {
+    margin: 0 0 2rem 0;
+    color: #000;
+    font-size: 1.6rem;
+    font-weight: 300;
+    letter-spacing: 0.08em;
+    text-align: center;
+}
+
+#welcome-play {
+    color: #000;
+    background: transparent;
+    border: 1px solid #000;
+    padding: 0.55rem 2.4rem;
+    font-size: 0.8rem;
+    font-weight: 400;
+    letter-spacing: 0.18em;
+    cursor: pointer;
+    font-family: inherit;
+    text-transform: lowercase;
+    transition: background 0.2s ease, color 0.2s ease;
+    -webkit-tap-highlight-color: transparent;
+}
+
+#welcome-play:hover {
+    background: #000;
+    color: #fff;
+}
+
+#welcome-play:active {
+    transform: scale(0.96);
+}
+
+.fade-out {
+    opacity: 0 !important;
+    pointer-events: none !important;
+}
+
+/* ===== 載入畫面 ===== */
+/* z-index 1001 比 welcome (1000) 高，加 .visible 時瞬間蓋住下方所有元素，
+   避免按完 play 看到藍底 + 搖桿穿透 */
+#loading-screen {
+    position: fixed;
+    inset: 0;
+    background: #ffffff;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 1001;
+    opacity: 1; /* 預設就是 1，這樣 display:flex 一加就立刻全白，不會 fade-in */
+}
+
+#loading-screen.visible {
+    display: flex;
+}
+
+#loading-screen.fade-out {
+    transition: opacity 0.6s ease;
+}
+
+#loading-spinner {
+    width: 36px;
+    height: 36px;
+    border: 2px solid rgba(0, 0, 0, 0.12);
+    border-top-color: #000;
+    border-radius: 50%;
+    animation: kitty-spin 0.8s linear infinite;
+}
+
+@keyframes kitty-spin {
+    to { transform: rotate(360deg); }
+}
+
+/* RWD: 手機螢幕字小一點 */
+@media (max-width: 600px) {
+    #welcome-cat-container {
+        width: 110px;
+        height: 110px;
+        margin-bottom: 1rem;
+    }
+    #welcome-title {
+        font-size: 1.3rem;
+        margin-bottom: 1.6rem;
+    }
+    #welcome-play {
+        font-size: 0.72rem;
+        padding: 0.5rem 2rem;
+    }
+    #loading-spinner {
+        width: 30px;
+        height: 30px;
+    }
 }
